@@ -1,0 +1,8 @@
+{
+  "name": "player-season-stats",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NBA and NFL season-long player game logs with volume statistics",
+  "scripts": {"start": "node server.js", "dev": "node server.js"},
+  "engines": {"node": ">=18"}
+}
