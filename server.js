@@ -3,7 +3,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { URL } = require('node:url');
-const PORT = Number(process.env.PORT) || 3000;
+const portFlag = process.argv.indexOf('--port');
+const PORT = Number(portFlag >= 0 ? process.argv[portFlag + 1] : process.env.PORT) || 3000;
 const WEB = 'https://site.web.api.espn.com';
 const SITE = 'https://site.api.espn.com';
 const cache = new Map();
@@ -32,6 +33,17 @@ http.createServer(async(req,res)=>{
   try { u=new URL(req.url,'http://localhost'); } catch { return send(res,400,{error:'Invalid URL'}); }
   if(req.method!=='GET') return send(res,405,{error:'GET only'});
   if(u.pathname==='/health') return send(res,200,{ok:true});
+  const matchupApi = {'/api/games':'games','/api/team':'team','/api/boxscore':'boxscore'};
+  if (matchupApi[u.pathname]) {
+    try {
+      const { serveMatchup } = await import('./lib/matchups.mjs');
+      const response = await serveMatchup(matchupApi[u.pathname], new Request(u.toString()));
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+      return res.end(await response.text());
+    } catch (error) {
+      return send(res, 502, {error: error.message});
+    }
+  }
   if(u.pathname==='/api/search' || u.pathname==='/api/gamelog' || u.pathname==='/api/profile') {
     try {
       const league=u.searchParams.get('league');
@@ -55,7 +67,9 @@ http.createServer(async(req,res)=>{
       return send(res,200,await remote(target,u.pathname==='/api/search'?180000:300000));
     } catch(err) { return send(res,502,{error:`Unable to load ESPN data: ${err.message}`}); }
   }
-  if(u.pathname!=='/' && u.pathname!=='/index.html') return send(res,404,'Not found','text/plain; charset=utf-8');
-  try { send(res,200,fs.readFileSync(path.join(__dirname,'index.html'),'utf8'),'text/html; charset=utf-8'); }
+  if(!['/','/index.html','/player.html'].includes(u.pathname)) return send(res,404,'Not found','text/plain; charset=utf-8');
+  const filename = u.pathname === '/player.html' ? 'player.html' : 'index.html';
+  try { send(res,200,fs.readFileSync(path.join(__dirname,filename),'utf8'),'text/html; charset=utf-8'); }
   catch { send(res,500,'Site unavailable','text/plain'); }
 }).listen(PORT,()=>console.log(`Player Season Stats running at http://localhost:${PORT}`));
+
